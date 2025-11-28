@@ -1,6 +1,6 @@
-// services/api.ts
+import { ComparisonResult } from '../types'; // Import the new type
 
-// ✅ Ensure this is your correct n8n domain
+// ✅ Update this to your real n8n domain
 const N8N_BASE_URL = 'https://n8n.ai4eg.com/webhook';
 
 interface ContactPayload {
@@ -59,6 +59,32 @@ export const api = {
             }
 
             return await response.json();
+        } catch (error) {
+            console.error("API Error:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Sends two business URLs to n8n for AI analysis
+     * ✅ NOW TYPED CORRECTLY
+     */
+    compareBusinesses: async (linkA: string, linkB: string): Promise<ComparisonResult> => {
+        try {
+            const response = await fetch(`${N8N_BASE_URL}/competitor-analysis`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ linkA, linkB }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`n8n Error: ${response.statusText}`);
+            }
+
+            // We cast the response to ComparisonResult so TypeScript knows what to expect
+            return await response.json() as ComparisonResult;
         } catch (error) {
             console.error("API Error:", error);
             throw error;

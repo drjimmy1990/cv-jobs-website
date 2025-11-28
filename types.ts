@@ -8,14 +8,40 @@ export enum BrandColor {
   Text = '#2C3E50'
 }
 
-// User Profile
 export interface UserProfile {
   id: string;
   email: string;
-  fullName: string;
+  fullName?: string;
   role: 'user' | 'admin';
   creditsCv: number;
   creditsChat: number;
+}
+
+// Comparison System (Phase 6 Updated)
+export interface ComparisonResult {
+  // Business A Data
+  businessA: string;
+  businessA_Score: number;
+  businessA_Count: number;
+  strengthsA: string[];
+  weaknessesA: string[];
+
+  // Business B Data
+  businessB: string;
+  businessB_Score: number;
+  businessB_Count: number;
+  strengthsB: string[];
+  weaknessesB: string[];
+
+  // Analysis
+  winner: string;
+  summary: string;
+  recommendation: string;
+
+  // Visuals
+  chartUrlMonthly: string;
+  chartUrlQuarterly: string;
+  chartUrlSentiment: string;
 }
 
 // Chat System
@@ -26,15 +52,6 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
-// Comparison System
-export interface ComparisonResult {
-  winner: string;
-  ratingGap: number;
-  sentimentSummary: string;
-  recommendation: string;
-}
-
-// Consultation (Service)
 export interface ConsultationRequest {
   id: string;
   userId: string;
@@ -45,7 +62,6 @@ export interface ConsultationRequest {
   date: string;
 }
 
-// General Contact Form
 export interface ContactSubmission {
   id: string;
   email: string;
@@ -54,11 +70,11 @@ export interface ContactSubmission {
   date: string;
 }
 
-// Language Context
 export type Language = 'en' | 'ar';
 
 export interface LangContextType {
   lang: Language;
   toggleLang: () => void;
   t: (key: string) => any;
+  isRTL: boolean;
 }
