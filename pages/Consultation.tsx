@@ -1,34 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/mockSupabase';
-import { CheckCircle, Briefcase } from 'lucide-react';
+import React, { useState } from 'react';
+import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { CheckCircle, Briefcase, Loader } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 export const Consultation: React.FC = () => {
-  const [formData, setFormData] = useState({ email: '', subject: '', message: '' });
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth(); // Get logged in user
   const { t } = useLanguage();
 
-  useEffect(() => {
-     supabase.auth.getUser().then(u => {
-       if (u && u.email) {
-         setFormData(prev => ({ ...prev, email: u.email }));
-       }
-     });
-  }, []);
+  const [formData, setFormData] = useState({ subject: '', message: '' });
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Auto-fill email if user is logged in
+  const userEmail = user?.email || '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      alert("You must be logged in to request a consultation.");
+      return;
+    }
+
     setLoading(true);
-    await supabase.db.createConsultation({
-      userId: 'user-123',
-      email: formData.email,
-      subject: formData.subject,
-      message: formData.message,
-      status: 'pending'
-    });
-    setLoading(false);
-    setSubmitted(true);
+    try {
+      await api.requestConsultation({
+        userId: user.id,
+        email: userEmail,
+        subject: formData.subject,
+        message: formData.message,
+      });
+      setSubmitted(true);
+    } catch (error) {
+      console.error(error);
+      alert("Failed to submit request. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -39,8 +47,8 @@ export const Consultation: React.FC = () => {
         </div>
         <h2 className="text-2xl font-bold text-charcoal mb-2">{t('consultation.successTitle')}</h2>
         <p className="text-gray-600 mb-6">{t('consultation.successMsg')}</p>
-        <button 
-          onClick={() => { setSubmitted(false); setFormData(prev => ({...prev, subject: '', message: ''})); }}
+        <button
+          onClick={() => { setSubmitted(false); setFormData({ subject: '', message: '' }); }}
           className="text-primary font-medium hover:underline"
         >
           {t('consultation.submitAnother')}
@@ -63,12 +71,10 @@ export const Consultation: React.FC = () => {
         <div className="mb-6">
           <label className="block text-sm font-semibold text-charcoal mb-2">{t('common.email')}</label>
           <input
-            required
             type="email"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-            value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
-            placeholder={t('consultation.emailNote')}
+            disabled
+            className="w-full border border-gray-300 bg-gray-100 text-gray-500 rounded-lg px-4 py-3 cursor-not-allowed"
+            value={userEmail || 'Please Login First'}
           />
         </div>
 
@@ -77,9 +83,9 @@ export const Consultation: React.FC = () => {
           <input
             required
             type="text"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary outline-none"
             value={formData.subject}
-            onChange={(e) => setFormData({...formData, subject: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
           />
         </div>
 
@@ -88,18 +94,18 @@ export const Consultation: React.FC = () => {
           <textarea
             required
             rows={6}
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all resize-none"
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary outline-none resize-none"
             value={formData.message}
-            onChange={(e) => setFormData({...formData, message: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, message: e.target.value })}
           />
         </div>
 
         <button
           type="submit"
-          disabled={loading}
-          className="w-full bg-primary hover:bg-blue-800 text-white font-bold py-3.5 rounded-lg shadow-lg transition-all flex justify-center items-center gap-2"
+          disabled={loading || !user}
+          className="w-full bg-primary hover:bg-blue-800 text-white font-bold py-3.5 rounded-lg shadow-lg transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? t('consultation.submitting') : t('consultation.submitRequest')}
+          {loading ? <Loader className="animate-spin" /> : t('consultation.submitRequest')}
         </button>
       </form>
     </div>

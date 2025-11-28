@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { 
-  Menu, X, Globe, User, LogOut, LayoutDashboard, 
+import {
+  Menu, X, Globe, User, LogOut, LayoutDashboard,
   Briefcase, MessageSquare, Home as HomeIcon, Info, CreditCard
 } from 'lucide-react';
-import { supabase } from '../services/mockSupabase';
-import { UserProfile } from '../types';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext'; // ✅ Using Real Auth
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,19 +13,13 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState<UserProfile | null>(null);
+
+  // ✅ REPLACED: Mock user state with Real Auth Context
+  const { user, signOut } = useAuth();
+
   const location = useLocation();
   const navigate = useNavigate();
   const { lang, toggleLang, t, isRTL } = useLanguage();
-
-  useEffect(() => {
-    supabase.auth.getUser().then(setUser);
-    // Subscribe to auth changes (mock)
-    const interval = setInterval(() => {
-      supabase.auth.getUser().then(setUser);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Scroll to top on route change (excluding hash changes handled manually)
   useEffect(() => {
@@ -36,9 +29,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [location.pathname]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    // ✅ REPLACED: Mock sign out with Real sign out
+    await signOut();
     navigate('/');
-    setUser(null);
   };
 
   const navLinks = [
@@ -65,7 +58,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     // Case 2: Hash Link (e.g. /#about or /#services)
     if (path.startsWith('/#')) {
       const id = path.replace('/#', '');
-      
+
       if (location.pathname === '/') {
         // If on Home, scroll to element
         const element = document.getElementById(id);
@@ -118,7 +111,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <nav className="bg-primary text-white sticky top-0 z-50 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            
+
             {/* Logo */}
             <div className="flex-shrink-0 cursor-pointer" onClick={() => handleNavClick('/')}>
               <div className="flex items-center gap-2">
@@ -144,7 +137,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                       onClick={() => handleNavClick(link.path)}
                       className={`px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-colors duration-200
                         ${isActive
-                          ? 'bg-secondary text-white shadow-sm' 
+                          ? 'bg-secondary text-white shadow-sm'
                           : 'text-gray-300 hover:bg-blue-800 hover:text-white'}`}
                     >
                       {link.icon}
@@ -157,24 +150,25 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Right Side Actions */}
             <div className="hidden md:flex items-center gap-4">
-              <button 
+              <button
                 onClick={toggleLang}
                 className="p-2 rounded-full hover:bg-blue-800 transition-colors flex items-center gap-1 text-sm font-medium"
               >
                 <Globe size={18} />
                 <span>{t('nav.switchToAr')}</span>
               </button>
-              
+
               {user ? (
                 <div className="flex items-center gap-3 bg-blue-900/50 px-3 py-1 rounded-full border border-blue-700">
                   <User size={16} className="text-secondary" />
-                  <span className="text-xs font-light tracking-wide">{user.fullName}</span>
+                  {/* ✅ UPDATED: Handle safe access to name */}
+                  <span className="text-xs font-light tracking-wide">{user.full_name || user.email}</span>
                   <button onClick={handleLogout} className="text-gray-400 hover:text-white transition-colors" title={t('common.signOut')}>
                     <LogOut size={16} />
                   </button>
                 </div>
               ) : (
-                <button 
+                <button
                   onClick={() => navigate('/login')}
                   className="bg-accent hover:bg-yellow-600 text-white px-5 py-1.5 rounded-full text-sm font-bold transition-transform hover:scale-105 shadow-md"
                 >
@@ -212,7 +206,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </button>
                 );
               })}
-               <button 
+              <button
                 onClick={() => { toggleLang(); setIsOpen(false); }}
                 className="w-full text-start px-3 py-3 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-blue-800 flex items-center gap-3 border-t border-blue-800 mt-2"
               >
@@ -220,13 +214,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 {t('nav.switchToAr')}
               </button>
               {!user && (
-                 <button 
-                 onClick={() => { navigate('/login'); setIsOpen(false); }}
-                 className="w-full text-start px-3 py-3 rounded-md text-base font-medium text-accent hover:text-white flex items-center gap-3"
-               >
-                 <User size={18} />
-                 {t('common.signIn')}
-               </button>
+                <button
+                  onClick={() => { navigate('/login'); setIsOpen(false); }}
+                  className="w-full text-start px-3 py-3 rounded-md text-base font-medium text-accent hover:text-white flex items-center gap-3"
+                >
+                  <User size={18} />
+                  {t('common.signIn')}
+                </button>
               )}
             </div>
           </div>
@@ -243,18 +237,18 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-8">
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5">
-                    <path d="M12 19V5M5 12l7-7 7 7" />
-                  </svg>
-                </div>
-                <span className="font-bold text-xl text-white">{t('common.growthNexus')}</span>
+              <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" className="w-5 h-5">
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                </svg>
+              </div>
+              <span className="font-bold text-xl text-white">{t('common.growthNexus')}</span>
             </div>
             <p className="text-sm text-gray-400 max-w-sm leading-relaxed">
               {t('home.aboutText1')}
             </p>
           </div>
-          
+
           <div>
             <h4 className="text-white font-bold mb-4">{t('common.learnMore')}</h4>
             <ul className="space-y-2 text-sm">
@@ -266,16 +260,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
 
           <div>
-             <h4 className="text-white font-bold mb-4">Contact</h4>
-             <ul className="space-y-2 text-sm">
-               <li dir="ltr">info@growthnexus.com</li>
-               <li dir="ltr">+971 4 123 4567</li>
-               <li>Dubai Internet City, UAE</li>
-             </ul>
+            <h4 className="text-white font-bold mb-4">Contact</h4>
+            <ul className="space-y-2 text-sm">
+              <li dir="ltr">info@growthnexus.com</li>
+              <li dir="ltr">+971 4 123 4567</li>
+              <li>Dubai Internet City, UAE</li>
+            </ul>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 mt-8 pt-8 border-t border-blue-800 text-center text-xs text-gray-500">
-            &copy; {new Date().getFullYear()} {t('common.growthNexus')}. {t('common.allRightsReserved')}
+          &copy; {new Date().getFullYear()} {t('common.growthNexus')}. {t('common.allRightsReserved')}
         </div>
       </footer>
     </div>

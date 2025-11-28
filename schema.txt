@@ -211,3 +211,22 @@ USING (
 -- Grant permissions to the Service Role (which n8n uses)
 GRANT ALL ON contact_submissions TO service_role;
 GRANT INSERT ON contact_submissions TO anon;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+UPDATE public.profiles
+SET role = 'admin', credits_cv = 999
+WHERE email = 'YOUR_EMAIL@EXAMPLE.COM';
