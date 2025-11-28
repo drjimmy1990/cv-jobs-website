@@ -1,117 +1,165 @@
 -- Enable UUID extension
-create extension if not exists "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. PROFILES TABLE (Extends Auth)
-create table profiles (
-  id uuid references auth.users on delete cascade not null primary key,
-  email text,
-  full_name text,
-  role text default 'user' check (role in ('user', 'admin')),
-  credits_cv int default 3,
-  credits_chat int default 50,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- 1. Profiles Table (User Management)
+CREATE TABLE profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT UNIQUE NOT NULL,
+    full_name TEXT,
+    role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    credits_cv INTEGER DEFAULT 3,
+    credits_chat INTEGER DEFAULT 50,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- RLS for Profiles
-alter table profiles enable row level security;
-create policy "Public profiles are viewable by everyone." on profiles for select using (true);
-create policy "Users can update own profile." on profiles for update using (auth.uid() = id);
+-- RLS for profiles
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Trigger to create profile on signup
-create function public.handle_new_user() 
-returns trigger as $$
-begin
-  insert into public.profiles (id, email, full_name)
-  values (new.id, new.email, new.raw_user_meta_data->>'full_name');
-  return new;
-end;
-$$ language plpgsql security definer;
+CREATE POLICY "Users can view their own profile" 
+ON profiles FOR SELECT 
+USING (auth.uid() = id);
 
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+CREATE POLICY "Users can update their own profile" 
+ON profiles FOR UPDATE 
+USING (auth.uid() = id);
 
--- 2. CV SESSIONS
-create table cv_sessions (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid references profiles(id) not null,
-  status text default 'active',
-  original_pdf_url text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- 2. CV Sessions Table (Individual Service)
+CREATE TABLE cv_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'downloaded', 'archived')),
+    original_pdf_url TEXT,
+    latest_draft_url TEXT,
+    final_pdf_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-alter table cv_sessions enable row level security;
-create policy "Users can see own sessions" on cv_sessions for select using (auth.uid() = user_id);
-create policy "Users can insert own sessions" on cv_sessions for insert with check (auth.uid() = user_id);
+-- RLS for cv_sessions
+ALTER TABLE cv_sessions ENABLE ROW LEVEL SECURITY;
 
--- 3. CHAT MESSAGES
-create table chat_messages (
-  id uuid default uuid_generate_v4() primary key,
-  session_id uuid references cv_sessions(id) on delete cascade, 
-  user_id uuid references profiles(id),
-  sender text check (sender in ('user', 'ai')),
-  content text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE POLICY "Users can view their own sessions" 
+ON cv_sessions FOR SELECT 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own sessions" 
+ON cv_sessions FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own sessions" 
+ON cv_sessions FOR UPDATE 
+USING (auth.uid() = user_id);
+
+-- 3. Chat Messages Table (Chat History)
+CREATE TABLE chat_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES cv_sessions(id) ON DELETE CASCADE NOT NULL,
+    sender TEXT CHECK (sender IN ('user', 'ai')) NOT NULL,
+    content TEXT NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-alter table chat_messages enable row level security;
-create policy "Users can see own messages" on chat_messages for select using (auth.uid() = user_id);
-create policy "Users can insert own messages" on chat_messages for insert with check (auth.uid() = user_id);
+-- RLS for chat_messages
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
--- 4. COMPANY COMPARISONS
-create table company_comparisons (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid references profiles(id) not null,
-  link_a text,
-  link_b text,
-  analysis_result jsonb,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE POLICY "Users can view messages from their sessions" 
+ON chat_messages FOR SELECT 
+USING (
+    EXISTS (
+        SELECT 1 FROM cv_sessions 
+        WHERE cv_sessions.id = chat_messages.session_id 
+        AND cv_sessions.user_id = auth.uid()
+    )
 );
 
-alter table company_comparisons enable row level security;
-create policy "Users can see own comparisons" on company_comparisons for select using (auth.uid() = user_id);
-create policy "Users can insert own comparisons" on company_comparisons for insert with check (auth.uid() = user_id);
-
--- 5. CONSULTATION REQUESTS
-create table consultation_requests (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid references profiles(id),
-  email text,
-  subject text,
-  message text,
-  status text default 'pending' check (status in ('pending', 'reviewed', 'closed')),
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+CREATE POLICY "Users can insert messages to their sessions" 
+ON chat_messages FOR INSERT 
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM cv_sessions 
+        WHERE cv_sessions.id = chat_messages.session_id 
+        AND cv_sessions.user_id = auth.uid()
+    )
 );
 
-alter table consultation_requests enable row level security;
-create policy "Users can see own requests" on consultation_requests for select using (auth.uid() = user_id);
-create policy "Admins can see all requests" on consultation_requests for select using (
-  exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-);
-create policy "Users can insert requests" on consultation_requests for insert with check (true);
-
--- 6. CONTACT SUBMISSIONS (General Form)
-create table contact_submissions (
-  id uuid default uuid_generate_v4() primary key,
-  email text,
-  subject text,
-  message text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- 4. Company Comparisons Table (Company Service)
+CREATE TABLE company_comparisons (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    business_link_a TEXT NOT NULL,
+    business_link_b TEXT NOT NULL,
+    analysis_result JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-alter table contact_submissions enable row level security;
-create policy "Admins can see submissions" on contact_submissions for select using (
-  exists (select 1 from profiles where id = auth.uid() and role = 'admin')
-);
-create policy "Public can insert submissions" on contact_submissions for insert with check (true);
+-- RLS for company_comparisons
+ALTER TABLE company_comparisons ENABLE ROW LEVEL SECURITY;
 
--- STORAGE BUCKETS
-insert into storage.buckets (id, name, public) values ('cv-uploads', 'cv-uploads', false);
+CREATE POLICY "Users can view their own comparisons" 
+ON company_comparisons FOR SELECT 
+USING (auth.uid() = user_id);
 
-create policy "Upload CV" on storage.objects for insert with check (
-  bucket_id = 'cv-uploads' and auth.uid() = owner
+CREATE POLICY "Users can insert their own comparisons" 
+ON company_comparisons FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+-- 5. Consultation Requests Table (New Company Service)
+CREATE TABLE consultation_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'closed')),
+    is_paid BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-create policy "View CV" on storage.objects for select using (
-  bucket_id = 'cv-uploads' and auth.uid() = owner
+-- RLS for consultation_requests
+ALTER TABLE consultation_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own consultation requests" 
+ON consultation_requests FOR SELECT 
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own consultation requests" 
+ON consultation_requests FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+-- Triggers for handling new user creation (Supabase Auth -> public.profiles)
+CREATE OR REPLACE FUNCTION public.handle_new_user() 
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name');
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Admin policies (Admins can view/edit everything)
+-- Note: You'll need to manually set the first admin in the database or via a migration script
+CREATE POLICY "Admins can view all profiles" 
+ON profiles FOR SELECT 
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() AND role = 'admin'
+  )
 );
+
+CREATE POLICY "Admins can update all profiles" 
+ON profiles FOR UPDATE 
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
+
+-- Grant permissions (optional, depending on default setup)
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;

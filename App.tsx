@@ -6,7 +6,8 @@ import { Services } from './pages/Services';
 import { CvOptimizer } from './pages/CvOptimizer';
 import { CompetitorAnalysis } from './pages/CompetitorAnalysis';
 import { Consultation } from './pages/Consultation';
-import { Contact } from './pages/Contact';
+// App.tsx
+import Contact from './pages/Contact'; // Remove the curly braces {}
 import { Admin } from './pages/Admin';
 import { Login } from './pages/Login';
 import { Pricing } from './pages/Pricing';
