@@ -1,3 +1,4 @@
+
 // Brand Colors Enum
 export enum BrandColor {
   Primary = '#1D4E89',
@@ -17,53 +18,65 @@ export interface UserProfile {
   creditsChat: number;
 }
 
-// --- CV Optimizer Types (New) ---
+// --- CV Optimizer Types ---
 export interface CvOptimizeResult {
-  type?: 'pdf_update' | 'chat_message'; // New field to distinguish
-  message?: string; // The text reply from AI
+  type?: 'pdf_update' | 'chat_message';
+  message?: string;
   optimizedText: string;
   pdfBase64: string;
   suggestions?: string[];
 }
+
 export interface CvFinalizeResult {
-  downloadUrl: string;     // Permanent Supabase URL
-  sessionId: string;       // Database ID
+  downloadUrl: string;
+  sessionId: string;
 }
 
-// --- Comparison System ---
-export interface ComparisonResult {
-  // Business A Data
-  businessA: string;
-  businessA_Score: number;
-  businessA_Count: number;
-  strengthsA: string[];
-  weaknessesA: string[];
-
-  // Business B Data
-  businessB: string;
-  businessB_Score: number;
-  businessB_Count: number;
-  strengthsB: string[];
-  weaknessesB: string[];
-
-  // Analysis
-  winner: string;
-  summary: string;
-  recommendation: string;
-
-  // Visuals
-  chartUrlMonthly: string;
-  chartUrlQuarterly: string;
-  chartUrlSentiment: string;
+// --- Database Types (Supabase Mapping) ---
+export interface DbCvSession {
+  id: string;
+  user_id: string;
+  status: string;
+  original_pdf_url?: string;
+  latest_draft_url?: string;
+  created_at: string;
+  // Recommend adding a 'text_content' column to your DB in the future to fully resume editing
 }
 
-// Chat System
+export interface DbChatMessage {
+  id: string;
+  session_id: string;
+  sender: 'user' | 'ai';
+  content: string;
+  timestamp: string;
+}
+
+// --- Application Types ---
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'ai';
   content: string;
   timestamp: Date;
-  isSystem?: boolean; // For status messages like "Generating PDF..."
+  isSystem?: boolean;
+}
+
+export interface ComparisonResult {
+  businessA: string;
+  businessA_Score: number;
+  businessA_Count: number;
+  strengthsA: string[];
+  weaknessesA: string[];
+  businessB: string;
+  businessB_Score: number;
+  businessB_Count: number;
+  strengthsB: string[];
+  weaknessesB: string[];
+  winner: string;
+  summary: string;
+  recommendation: string;
+  chartUrlMonthly: string;
+  chartUrlQuarterly: string;
+  chartUrlSentiment: string;
 }
 
 export interface ConsultationRequest {
