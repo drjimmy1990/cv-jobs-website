@@ -93,13 +93,12 @@ export const api = {
 
     /**
      * 1. Upload PDF to extract raw text & Create Session
-     * ✅ UPDATED: Sends userId to n8n
      */
     parseCv: async (file: File, userId: string): Promise<{ text: string; sessionId: string }> => {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('userId', userId); // Sent to n8n to create DB record
+            formData.append('userId', userId);
 
             const response = await fetch(`${N8N_BASE_URL}/parse-cv`, {
                 method: 'POST',
@@ -116,7 +115,6 @@ export const api = {
 
     /**
      * 2. The Loop: Chat with AI (Context Aware)
-     * ✅ UPDATED: Sends sessionId so AI has memory
      */
     optimizeCv: async (sessionId: string, currentText: string, userPrompt: string): Promise<CvOptimizeResult> => {
         try {
@@ -145,14 +143,15 @@ export const api = {
 
     /**
      * 3. Finalize: Mark session as complete and get final URL
-     * ✅ UPDATED: Uses sessionId to find the specific record
+     * ✅ UPDATED: Now sends `userId` because n8n workflow requires it
      */
-    finalizeCv: async (sessionId: string): Promise<CvFinalizeResult> => {
+    finalizeCv: async (sessionId: string, userId: string): Promise<CvFinalizeResult> => {
         try {
             const response = await fetch(`${N8N_BASE_URL}/finalize-cv`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId })
+                // Sending both ID and UserID to match n8n requirements
+                body: JSON.stringify({ sessionId, userId })
             });
 
             if (!response.ok) throw new Error("Finalization failed");

@@ -344,3 +344,7 @@ USING ( auth.uid() = id );
 CREATE POLICY "Admins can update requests" 
 ON consultation_requests FOR UPDATE 
 USING ( is_admin() );
+
+
+
+ALTER TABLE cv_sessions ADD COLUMN text_content TEXT;

@@ -1,9 +1,7 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Send, Download, FileText, X, RefreshCw, Loader, MessageSquare, History } from 'lucide-react';
+import { Upload, Send, Download, FileText, X, RefreshCw, Loader, MessageSquare, History, Sparkles, Edit3, ListChecks } from 'lucide-react';
 import { api } from '../services/api';
-import { supabase } from '../services/supabaseClient'; // Direct DB access for chat history
+import { supabase } from '../services/supabaseClient';
 import { ChatMessage, DbChatMessage, DbCvSession } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -15,7 +13,7 @@ export const CvOptimizer: React.FC = () => {
   // --- State Management ---
   const [file, setFile] = useState<File | null>(null);
   const [pdfPreview, setPdfPreview] = useState<string | null>(null);
-  const [currentText, setCurrentText] = useState<string>(''); // Source text for AI
+  const [currentText, setCurrentText] = useState<string>('');
   const [sessionId, setSessionId] = useState<string>('');
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -26,6 +24,7 @@ export const CvOptimizer: React.FC = () => {
   const [isRestoring, setIsRestoring] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // --- 1. RESTORE LAST SESSION ON MOUNT ---
   useEffect(() => {
@@ -36,18 +35,15 @@ export const CvOptimizer: React.FC = () => {
       }
 
       try {
-        // A. Get the most recent active session
         const { data: sessionData, error: sessionError } = await supabase
           .from('cv_sessions')
           .select('*')
           .eq('user_id', user.id)
-          .eq('status', 'active')
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
 
         if (sessionError && sessionError.code !== 'PGRST116') {
-          // PGRST116 is "Row not found", which is fine
           console.error('Error fetching session:', sessionError);
         }
 
@@ -55,11 +51,13 @@ export const CvOptimizer: React.FC = () => {
           const dbSession = sessionData as DbCvSession;
           setSessionId(dbSession.id);
 
-          // Restore PDF View (Prioritize latest draft, fallback to original)
+          if (dbSession.text_content) {
+            setCurrentText(dbSession.text_content);
+          }
+
           if (dbSession.latest_draft_url) setPdfPreview(dbSession.latest_draft_url);
           else if (dbSession.original_pdf_url) setPdfPreview(dbSession.original_pdf_url);
 
-          // B. Fetch Chat History for this session
           const { data: msgData, error: msgError } = await supabase
             .from('chat_messages')
             .select('*')
@@ -75,9 +73,6 @@ export const CvOptimizer: React.FC = () => {
             }));
             setMessages(history);
           }
-
-          // Note: We cannot restore 'currentText' easily unless stored in DB.
-          // User might need to re-upload to continue *editing*, but chat works.
         }
       } catch (err) {
         console.error("Restoration failed:", err);
@@ -96,7 +91,6 @@ export const CvOptimizer: React.FC = () => {
 
   // --- Handlers ---
 
-  // 2. File Upload (STARTS NEW SESSION)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
@@ -111,7 +105,6 @@ export const CvOptimizer: React.FC = () => {
         return;
       }
 
-      // Reset state for new session
       setFile(selectedFile);
       setIsProcessingFile(true);
       setMessages([]);
@@ -119,14 +112,18 @@ export const CvOptimizer: React.FC = () => {
       setPdfPreview(objectUrl);
 
       try {
-        // Send to n8n: Parse Text & Create DB Session
         const response = await api.parseCv(selectedFile, user.id);
 
         setCurrentText(response.text);
         setSessionId(response.sessionId);
 
-        // Save initial system message to DB
-        const introMsg = `I've analyzed **${selectedFile.name}**. I'm ready to help you optimize it.`;
+        await supabase
+          .from('cv_sessions')
+          .update({ text_content: response.text })
+          .eq('id', response.sessionId);
+
+        const cleanName = selectedFile.name.length > 20 ? selectedFile.name.substring(0, 15) + '....pdf' : selectedFile.name;
+        const introMsg = `I've analyzed **${cleanName}**. I'm ready to help you optimize it.`;
 
         await supabase.from('chat_messages').insert({
           session_id: response.sessionId,
@@ -163,22 +160,21 @@ export const CvOptimizer: React.FC = () => {
     }
   };
 
-  // 3. Chat & Optimize Loop (WITH DB PERSISTENCE)
-  const handleSend = async () => {
-    if (!input.trim() || loading || !sessionId) return;
+  const handleSend = async (overrideText?: string) => {
+    const contentToSend = overrideText || input;
 
-    // Check if we have text context. If not (restored session), warn user.
+    if (!contentToSend.trim() || loading || !sessionId) return;
+
     if (!currentText && !file) {
-      if (!confirm("Warning: I don't have the raw text of your CV in memory because this is a restored session. I can chat, but I cannot edit the PDF until you re-upload it. Continue?")) {
-        return;
-      }
+      console.warn("No text content found in session. AI might fail to optimize.");
     }
 
-    const contentToSend = input;
-    setInput('');
+    if (!overrideText) {
+      setInput('');
+    }
+
     setLoading(true);
 
-    // A. Optimistic UI Update (User)
     const tempUserMsg: ChatMessage = {
       id: Date.now().toString(),
       sender: 'user',
@@ -188,7 +184,6 @@ export const CvOptimizer: React.FC = () => {
     setMessages(prev => [...prev, tempUserMsg]);
 
     try {
-      // B. Persist User Message to DB
       await supabase.from('chat_messages').insert({
         session_id: sessionId,
         sender: 'user',
@@ -196,7 +191,6 @@ export const CvOptimizer: React.FC = () => {
         timestamp: new Date().toISOString()
       });
 
-      // Show loading
       const loadingId = 'loading-' + Date.now();
       setMessages(prev => [...prev, {
         id: loadingId,
@@ -206,16 +200,12 @@ export const CvOptimizer: React.FC = () => {
         isSystem: true
       }]);
 
-      // C. Call n8n Intelligent Agent
       const result = await api.optimizeCv(sessionId, currentText || " ", contentToSend);
 
-      // Remove loading
       setMessages(prev => prev.filter(m => !m.isSystem));
 
-      // D. Handle Result
       const aiResponseText = result.message || "Request processed.";
 
-      // E. Persist AI Message to DB
       await supabase.from('chat_messages').insert({
         session_id: sessionId,
         sender: 'ai',
@@ -223,7 +213,6 @@ export const CvOptimizer: React.FC = () => {
         timestamp: new Date().toISOString()
       });
 
-      // F. UI Update (AI)
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         sender: 'ai',
@@ -231,10 +220,14 @@ export const CvOptimizer: React.FC = () => {
         timestamp: new Date()
       }]);
 
-      // G. Handle PDF Updates
       if (result.type === 'pdf_update' && result.pdfBase64) {
-        setCurrentText(result.optimizedText); // Update context for next turn
+        setCurrentText(result.optimizedText);
         setPdfPreview(`data:application/pdf;base64,${result.pdfBase64}`);
+
+        await supabase
+          .from('cv_sessions')
+          .update({ text_content: result.optimizedText })
+          .eq('id', sessionId);
       }
 
     } catch (error) {
@@ -252,12 +245,13 @@ export const CvOptimizer: React.FC = () => {
     }
   };
 
-  // 4. Finalize & Download
   const handleDownloadFinal = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !user) return; // Ensure user exists
     setIsFinalizing(true);
     try {
-      const result = await api.finalizeCv(sessionId);
+      // ✅ UPDATED: Pass user.id
+      const result = await api.finalizeCv(sessionId, user.id);
+
       if (result.downloadUrl) {
         window.open(result.downloadUrl, '_blank');
       } else {
@@ -269,6 +263,14 @@ export const CvOptimizer: React.FC = () => {
     } finally {
       setIsFinalizing(false);
     }
+  };
+
+  // --- Button Handlers ---
+  const handleOptimizationATS = () => handleSend("Optimization as per ATS");
+  const handleSuggestedImprovements = () => handleSend("Suggested Improvements");
+  const handleCustomizedChanges = () => {
+    setInput("CHANGES NEEDED: ");
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   // --- Render ---
@@ -289,8 +291,6 @@ export const CvOptimizer: React.FC = () => {
 
       {/* LEFT COLUMN: PDF Viewer */}
       <div className={`w-full md:w-1/2 border-r border-gray-200 bg-gray-100 flex flex-col ${isRTL ? 'border-l border-r-0' : ''}`}>
-
-        {/* Toolbar */}
         <div className="p-4 bg-white border-b border-gray-200 flex justify-between items-center shadow-sm z-10 shrink-0">
           <h2 className="font-semibold text-charcoal flex items-center gap-2 overflow-hidden">
             <FileText size={18} className="text-primary shrink-0" />
@@ -321,10 +321,8 @@ export const CvOptimizer: React.FC = () => {
           </div>
         </div>
 
-        {/* Viewer Area */}
         <div className="flex-1 flex items-center justify-center bg-gray-200/50 overflow-hidden relative">
           {!pdfPreview && !isProcessingFile ? (
-            // Upload State
             <div className="text-center p-10 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 m-4 max-w-sm">
               <Upload size={48} className="mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-700">{t('cv.uploadTitle')}</h3>
@@ -342,13 +340,11 @@ export const CvOptimizer: React.FC = () => {
               </div>
             </div>
           ) : isProcessingFile ? (
-            // Loading State
             <div className="text-center">
               <Loader size={40} className="animate-spin text-primary mx-auto mb-4" />
               <p className="text-gray-500 font-medium">Extracting text...</p>
             </div>
           ) : (
-            // PDF Preview State
             <div className="w-full h-full bg-gray-300 relative">
               {pdfPreview && (
                 <iframe
@@ -365,7 +361,6 @@ export const CvOptimizer: React.FC = () => {
       {/* RIGHT COLUMN: Chat Interface */}
       <div className="w-full md:w-1/2 flex flex-col bg-white border-l border-gray-200">
 
-        {/* Header */}
         <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
           <h2 className="font-semibold text-charcoal flex items-center gap-2">
             <MessageSquare size={18} className="text-secondary" />
@@ -383,7 +378,6 @@ export const CvOptimizer: React.FC = () => {
           </div>
         </div>
 
-        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && !isProcessingFile && (
             <div className="text-center text-gray-400 mt-20 px-6">
@@ -418,8 +412,37 @@ export const CvOptimizer: React.FC = () => {
 
         {/* Input Area */}
         <div className="p-4 border-t border-gray-200 bg-white">
+
+          {/* Quick Actions - Always visible if a session exists OR messages exist */}
+          {(sessionId || file || messages.length > 0) && (
+            <div className="flex gap-2 mb-3 overflow-x-auto pb-2 scrollbar-thin">
+              <button
+                onClick={handleOptimizationATS}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-blue-50 text-primary hover:bg-primary hover:text-white transition-colors border border-blue-100 whitespace-nowrap disabled:opacity-50"
+              >
+                <Sparkles size={14} /> Optimization as per ATS
+              </button>
+              <button
+                onClick={handleSuggestedImprovements}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-teal-50 text-teal-700 hover:bg-secondary hover:text-white transition-colors border border-teal-100 whitespace-nowrap disabled:opacity-50"
+              >
+                <ListChecks size={14} /> Suggested Improvements
+              </button>
+              <button
+                onClick={handleCustomizedChanges}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 hover:bg-gray-700 hover:text-white transition-colors border border-gray-200 whitespace-nowrap disabled:opacity-50"
+              >
+                <Edit3 size={14} /> Customized Changes
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 max-w-3xl mx-auto">
             <input
+              ref={inputRef}
               type="text"
               disabled={(!file && !sessionId) || loading || isProcessingFile}
               value={input}
@@ -429,7 +452,7 @@ export const CvOptimizer: React.FC = () => {
               className="flex-1 border border-gray-300 rounded-full px-5 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 transition-shadow"
             />
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim() || loading}
               className="bg-primary text-white p-3 rounded-full hover:bg-blue-800 disabled:opacity-50 disabled:hover:bg-primary transition-all shadow-md hover:shadow-lg transform hover:scale-105"
             >

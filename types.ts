@@ -39,8 +39,8 @@ export interface DbCvSession {
   status: string;
   original_pdf_url?: string;
   latest_draft_url?: string;
+  text_content?: string; // <--- ADD THIS LINE
   created_at: string;
-  // Recommend adding a 'text_content' column to your DB in the future to fully resume editing
 }
 
 export interface DbChatMessage {
