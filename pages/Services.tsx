@@ -246,6 +246,26 @@ export const Services: React.FC = () => {
                 </div>
               </div>
 
+              {/* Business Analyzer Card */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl hover:border-teal-300 transition-all duration-300 group flex flex-col h-full">
+                <div className="h-48 bg-teal-50 flex items-center justify-center relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 bg-teal-100/50 transform rotate-6 scale-125 rounded-3xl translate-y-16"></div>
+                  <Activity size={64} className="text-teal-300 group-hover:text-teal-700 transition-colors relative z-10" />
+                </div>
+                <div className="p-8 flex-1 flex flex-col">
+                  <h3 className="text-xl font-bold text-charcoal mb-4">{t('businessAnalyzer.title')}</h3>
+                  <p className="text-gray-600 text-sm mb-8 leading-relaxed flex-1">
+                    {t('businessAnalyzer.subtitle')}
+                  </p>
+                  <button
+                    onClick={() => navigate('/services/business-analyzer')}
+                    className="w-full border-2 border-primary text-primary hover:bg-primary hover:text-white py-3 rounded-xl font-bold transition-colors flex justify-center items-center gap-2 mt-auto"
+                  >
+                    {t('businessAnalyzer.analyzeNow')} <ArrowForward size={18} />
+                  </button>
+                </div>
+              </div>
+
               {/* Expert Consultation Card */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl hover:border-orange-300 transition-all duration-300 group flex flex-col h-full">
                 <div className="h-48 bg-orange-50 flex items-center justify-center relative overflow-hidden shrink-0">

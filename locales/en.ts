@@ -224,5 +224,21 @@ export const en = {
     continueEditing: "Continue Editing",
     isRequired: "is required",
     removeSection: "Remove section",
+  },
+  businessAnalyzer: {
+    title: "Business Analyzer",
+    subtitle: "Enter a business URL to generate an AI-powered performance report.",
+    businessUrl: "Business URL",
+    analyzing: "Analyzing...",
+    analyzeNow: "Analyze Now",
+    executiveReport: "Executive Report",
+    printPdf: "Print PDF",
+    reviews: "Reviews",
+    reviewVolume: "Review Volume",
+    quarterlyGrowth: "Quarterly Growth",
+    sentimentAnalysis: "Sentiment Analysis",
+    strengths: "Strengths",
+    weaknesses: "Weaknesses",
+    recommendation: "Strategic Recommendation",
   }
 };

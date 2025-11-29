@@ -1,4 +1,4 @@
-import { ComparisonResult, CvOptimizeResult, CvFinalizeResult } from '../types';
+import { ComparisonResult, CvOptimizeResult, CvFinalizeResult, BusinessAnalysisResult } from '../types';
 
 // ✅ Ensure this is your correct n8n domain
 const N8N_BASE_URL = 'https://n8n.ai4eg.com/webhook';
@@ -83,6 +83,30 @@ export const api = {
             }
 
             return await response.json() as ComparisonResult;
+        } catch (error) {
+            console.error("API Error:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Sends a single business URL to n8n for AI analysis
+     */
+    analyzeBusiness: async (link: string): Promise<BusinessAnalysisResult> => {
+        try {
+            const response = await fetch(`${N8N_BASE_URL}/business-analyzer`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ link }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`n8n Error: ${response.statusText}`);
+            }
+
+            return await response.json() as BusinessAnalysisResult;
         } catch (error) {
             console.error("API Error:", error);
             throw error;

@@ -79,6 +79,19 @@ export interface ComparisonResult {
   chartUrlSentiment: string;
 }
 
+export interface BusinessAnalysisResult {
+  businessName: string;
+  score: number;
+  reviewCount: number;
+  strengths: string[];
+  weaknesses: string[];
+  summary: string;
+  recommendation: string;
+  chartUrlMonthly: string;
+  chartUrlQuarterly: string;
+  chartUrlSentiment: string;
+}
+
 export interface ConsultationRequest {
   id: string;
   userId: string;

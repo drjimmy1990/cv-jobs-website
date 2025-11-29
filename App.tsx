@@ -4,7 +4,8 @@ import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { CvOptimizer } from './pages/CvOptimizer';
-import { CvCreator } from './pages/CvCreator'; // <--- 1. Import this
+import { CvCreator } from './pages/CvCreator';
+import { BusinessAnalyzer } from './pages/BusinessAnalyzer';
 import { CompetitorAnalysis } from './pages/CompetitorAnalysis';
 import { Consultation } from './pages/Consultation';
 import Contact from './pages/Contact';
@@ -27,7 +28,8 @@ const App: React.FC = () => {
               <Route path="/contact" element={<Contact />} />
               <Route path="/services" element={<Services />} />
               <Route path="/services/cv-optimizer" element={<CvOptimizer />} />
-              <Route path="/services/cv-creator" element={<CvCreator />} /> {/* <--- 2. Add this Route */}
+              <Route path="/services/cv-creator" element={<CvCreator />} />
+              <Route path="/services/business-analyzer" element={<BusinessAnalyzer />} />
               <Route path="/services/competitor-analysis" element={<CompetitorAnalysis />} />
               <Route path="/services/consultation" element={<Consultation />} />
               <Route path="/admin" element={<Admin />} />

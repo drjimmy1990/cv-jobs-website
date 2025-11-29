@@ -225,5 +225,21 @@ export const ar = {
     continueEditing: "متابعة التحرير",
     isRequired: "مطلوب",
     removeSection: "إزالة القسم",
+  },
+  businessAnalyzer: {
+    title: "محلل الأعمال",
+    subtitle: "أدخل رابط العمل لإنشاء تقرير أداء مدعوم بالذكاء الاصطناعي.",
+    businessUrl: "رابط العمل",
+    analyzing: "جاري التحليل...",
+    analyzeNow: "حلل الآن",
+    executiveReport: "التقرير التنفيذي",
+    printPdf: "طباعة PDF",
+    reviews: "مراجعات",
+    reviewVolume: "حجم المراجعات",
+    quarterlyGrowth: "النمو الفصلي",
+    sentimentAnalysis: "تحليل المشاعر",
+    strengths: "نقاط القوة",
+    weaknesses: "نقاط الضعف",
+    recommendation: "توصية استراتيجية",
   }
 };
