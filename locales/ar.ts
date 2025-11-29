@@ -199,7 +199,7 @@ export const ar = {
     endDate: "تاريخ الانتهاء",
     currentWork: "أعمل هنا حالياً",
     responsibilities: "المسؤوليات",
-    level: "المستوى",
+
     proficiency: "الإجادة",
     awardName: "اسم الجائزة",
     organization: "الجهة المانحة",

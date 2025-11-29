@@ -199,7 +199,7 @@ export const en = {
     endDate: "End Date",
     currentWork: "I currently work here",
     responsibilities: "Responsibilities",
-    level: "Level",
+
     proficiency: "Proficiency",
     awardName: "Award Name",
     organization: "Organization",

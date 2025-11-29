@@ -129,7 +129,6 @@ export interface CvEducation {
 
 export interface CvSkill {
   name: string;
-  level: string;
 }
 
 export interface CvLanguage {

@@ -30,7 +30,7 @@ export const CvCreator: React.FC = () => {
         summary: '',
         experience: [{ title: '', company: '', location: '', startDate: '', endDate: '', current: false, description: '' }],
         education: [{ institution: '', degree: '', field: '', gradDate: '', gpa: '' }],
-        skills: [{ name: '', level: '' }],
+        skills: [{ name: '' }],
         languages: [{ name: '', proficiency: '' }],
         projects: [{ name: '', date: '', description: '', link: '' }],
         certifications: [{ name: '', org: '', date: '', link: '' }],
@@ -334,18 +334,10 @@ export const CvCreator: React.FC = () => {
                                         <div className="flex-1">
                                             <input value={skill.name} onChange={(e) => updateArray('skills', idx, 'name', e.target.value)} className={inputClass} placeholder="e.g. React" />
                                         </div>
-                                        <div className="flex-1">
-                                            <select value={skill.level} onChange={(e) => updateArray('skills', idx, 'level', e.target.value)} className={inputClass}>
-                                                <option value="">{t('cvCreator.level')}</option>
-                                                <option value="Beginner">Beginner</option>
-                                                <option value="Intermediate">Intermediate</option>
-                                                <option value="Expert">Expert</option>
-                                            </select>
-                                        </div>
                                         {formData.skills.length > 1 && <button onClick={() => removeItem('skills', idx)} className="text-red-400 p-2"><X size={18} /></button>}
                                     </div>
                                 ))}
-                                <button onClick={() => addItem('skills', { name: '', level: '' })} className="text-secondary font-bold text-sm flex items-center gap-1"><Plus size={16} /> {t('cvCreator.addSkill')}</button>
+                                <button onClick={() => addItem('skills', { name: '' })} className="text-secondary font-bold text-sm flex items-center gap-1"><Plus size={16} /> {t('cvCreator.addSkill')}</button>
                             </div>
                         )}
 
