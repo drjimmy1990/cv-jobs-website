@@ -1,0 +1,205 @@
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ==========================================
+-- 1. Profiles Table (User Management)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT UNIQUE NOT NULL,
+    full_name TEXT,
+    role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    credits_cv INTEGER DEFAULT 3,
+    credits_chat INTEGER DEFAULT 50,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- 2. CV Sessions Table (Individual Service)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS cv_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'downloaded', 'archived')),
+    original_pdf_url TEXT,
+    latest_draft_url TEXT,
+    final_pdf_url TEXT,
+    text_content TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE cv_sessions ENABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- 3. Chat Messages Table (Chat History)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID REFERENCES cv_sessions(id) ON DELETE CASCADE NOT NULL,
+    sender TEXT CHECK (sender IN ('user', 'ai')) NOT NULL,
+    content TEXT NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- 4. Company Comparisons Table (Company Service)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS company_comparisons (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    business_link_a TEXT NOT NULL,
+    business_link_b TEXT NOT NULL,
+    analysis_result JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE company_comparisons ENABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- 5. Consultation Requests Table
+-- ==========================================
+CREATE TABLE IF NOT EXISTS consultation_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'closed')),
+    is_paid BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE consultation_requests ENABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- 6. Contact Submissions (Public Form)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS contact_submissions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email TEXT NOT NULL,
+    subject TEXT,
+    message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE contact_submissions ENABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- FUNCTIONS & TRIGGERS
+-- ==========================================
+
+-- Handle New User (Supabase Auth -> public.profiles)
+CREATE OR REPLACE FUNCTION public.handle_new_user() 
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name');
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- Is Admin Helper (Security Definer to avoid recursion)
+CREATE OR REPLACE FUNCTION public.is_admin() 
+RETURNS BOOLEAN 
+LANGUAGE plpgsql 
+SECURITY DEFINER 
+SET search_path = public 
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 
+    FROM profiles 
+    WHERE id = auth.uid() 
+    AND role = 'admin'
+  );
+END;
+$$;
+
+-- ==========================================
+-- RLS POLICIES
+-- ==========================================
+
+-- PROFILES
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
+CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins can view all profiles" ON profiles;
+CREATE POLICY "Admins can view all profiles" ON profiles FOR SELECT USING (is_admin());
+
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins can update all profiles" ON profiles;
+CREATE POLICY "Admins can update all profiles" ON profiles FOR UPDATE USING (is_admin());
+
+-- CV SESSIONS
+DROP POLICY IF EXISTS "Users can view own sessions" ON cv_sessions;
+CREATE POLICY "Users can view own sessions" ON cv_sessions FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own sessions" ON cv_sessions;
+CREATE POLICY "Users can insert own sessions" ON cv_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update own sessions" ON cv_sessions;
+CREATE POLICY "Users can update own sessions" ON cv_sessions FOR UPDATE USING (auth.uid() = user_id);
+
+-- CHAT MESSAGES
+DROP POLICY IF EXISTS "Users can view messages from their sessions" ON chat_messages;
+CREATE POLICY "Users can view messages from their sessions" ON chat_messages FOR SELECT USING (
+    EXISTS (
+        SELECT 1 FROM cv_sessions 
+        WHERE cv_sessions.id = chat_messages.session_id 
+        AND cv_sessions.user_id = auth.uid()
+    )
+);
+
+DROP POLICY IF EXISTS "Users can insert messages to their sessions" ON chat_messages;
+CREATE POLICY "Users can insert messages to their sessions" ON chat_messages FOR INSERT WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM cv_sessions 
+        WHERE cv_sessions.id = chat_messages.session_id 
+        AND cv_sessions.user_id = auth.uid()
+    )
+);
+
+-- COMPANY COMPARISONS
+DROP POLICY IF EXISTS "Users can view own comparisons" ON company_comparisons;
+CREATE POLICY "Users can view own comparisons" ON company_comparisons FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own comparisons" ON company_comparisons;
+CREATE POLICY "Users can insert own comparisons" ON company_comparisons FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- CONSULTATION REQUESTS
+DROP POLICY IF EXISTS "Users can view own consultation requests" ON consultation_requests;
+CREATE POLICY "Users can view own consultation requests" ON consultation_requests FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own consultation requests" ON consultation_requests;
+CREATE POLICY "Users can insert own consultation requests" ON consultation_requests FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can update requests" ON consultation_requests;
+CREATE POLICY "Admins can update requests" ON consultation_requests FOR UPDATE USING (is_admin());
+
+DROP POLICY IF EXISTS "Admins can view all requests" ON consultation_requests;
+CREATE POLICY "Admins can view all requests" ON consultation_requests FOR SELECT USING (is_admin());
+
+-- CONTACT SUBMISSIONS
+DROP POLICY IF EXISTS "Public can insert contact forms" ON contact_submissions;
+CREATE POLICY "Public can insert contact forms" ON contact_submissions FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Admins can view contact forms" ON contact_submissions;
+CREATE POLICY "Admins can view contact forms" ON contact_submissions FOR SELECT USING (is_admin());
+
+-- ==========================================
+-- PERMISSIONS
+-- ==========================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
